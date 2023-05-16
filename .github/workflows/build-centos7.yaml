@@ -1,0 +1,62 @@
+name: Build for CentOS 7
+
+on:
+  push:
+    branches:
+      - centos7-build
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    container:
+      image: centos:7
+
+    steps:
+      - name: Update and install build tools
+        # Add python-devel to support python in gdb.
+        # actions/checkout@v3 requires git >= 2.18
+        run: |
+          yum -y update
+          yum -y install \
+            autoconf automake python3 libmpc-devel mpfr-devel gmp-devel gawk \
+            bison flex texinfo patchutils zlib-devel expat-devel \
+            python-devel \
+            centos-release-scl \
+            https://repo.ius.io/ius-release-el7.rpm \
+            https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+          yum -y install devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-make \
+            git236-core
+
+      - uses: actions/checkout@v3
+
+      - name: Checkout submodules
+        run: |
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
+          git submodule init binutils gcc gdb glibc newlib
+          git submodule update --progress --depth=1 -j 0
+
+      - name: Configure
+        run: |
+          scl enable devtoolset-11 -- \
+            ./configure --prefix=/opt/riscv --enable-multilib --enable-libsanitizer --with-cmodel=medany
+
+      - name: Build Newlib toolchain
+        run: scl enable devtoolset-11 -- make -j $(nproc)
+
+      - name: Clean temporary files to free up space
+        run: make clean
+
+      - name: Build Linux toolchain
+        run: scl enable devtoolset-11 -- make -j $(nproc) linux
+
+      - name: Clean temporary files to free up space
+        run: make clean
+
+      - name: Create tarball
+        # WARNING each xz thread consumes nearly 1 GB of memory
+        run: XZOPT=-T0 tar -cJvf rv-gnu-toolchain-centos7.txz -C /opt/ riscv/
+
+      - uses: actions/upload-artifact@v3
+        with:
+          name: toolchain-for-centos7
+          path: rv-gnu-toolchain-centos7.txz
