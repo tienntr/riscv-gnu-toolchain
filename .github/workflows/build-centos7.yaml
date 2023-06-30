@@ -38,7 +38,7 @@ jobs:
       - name: Configure
         run: |
           scl enable devtoolset-11 -- \
-            ./configure --prefix=/opt/riscv --enable-multilib --enable-libsanitizer --with-cmodel=medany
+            ./configure --prefix=/opt/riscv --enable-libsanitizer --with-cmodel=medany
 
       - name: Build Newlib toolchain
         run: scl enable devtoolset-11 -- make -j $(nproc)
