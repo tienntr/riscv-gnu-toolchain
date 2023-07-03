@@ -18,13 +18,15 @@ jobs:
         run: |
           yum -y update
           yum -y install \
-            autoconf automake python3 libmpc-devel mpfr-devel gmp-devel gawk \
-            bison flex texinfo patchutils zlib-devel expat-devel \
-            python-devel \
             centos-release-scl \
             https://repo.ius.io/ius-release-el7.rpm \
             https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
-          yum -y install devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-make \
+          yum -y install \
+            autoconf automake python3 libmpc-devel mpfr-devel gmp-devel gawk \
+            bison flex texinfo patchutils zlib-devel expat-devel \
+            python-devel \
+            ninja-build dtc glib2-devel \
+            cmake3 devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-make \
             git236-core
 
       - uses: actions/checkout@v3
@@ -32,8 +34,8 @@ jobs:
       - name: Checkout submodules
         run: |
           git config --global --add safe.directory ${GITHUB_WORKSPACE}
-          git submodule init binutils gcc gdb glibc newlib
-          git submodule update --progress --depth=1 -j 0
+          git submodule init binutils gcc gdb glibc newlib qemu spike
+          git submodule update --recursive --progress --depth=1 -j 0
 
       - name: Configure
         run: |
@@ -43,8 +45,14 @@ jobs:
       - name: Build Newlib toolchain
         run: scl enable devtoolset-11 -- make -j $(nproc)
 
-      - name: Clean temporary files to free up space
-        run: make clean
+      - name: Build QEMU
+        run: scl enable devtoolset-11 -- make -j $(nproc) build-sim SIM=qemu
+
+      - name: Build Spike
+        run: scl enable devtoolset-11 -- make -j $(nproc) build-sim SIM=spike
+
+#       - name: Clean temporary files to free up space
+#         run: make clean
 
       - name: Build Linux toolchain
         run: scl enable devtoolset-11 -- make -j $(nproc) linux
