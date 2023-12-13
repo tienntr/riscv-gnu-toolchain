@@ -54,7 +54,7 @@ jobs:
       - name: Configure Linux toolchain
         run: |
           scl enable devtoolset-11 -- \
-            ./configure --prefix=/opt/riscv --enable-libsanitizer --enable-llvm --with-cmodel=medany
+            ./configure --prefix=/opt/riscv --enable-llvm --with-cmodel=medany
 
       - name: Build Linux toolchain
         run: scl enable devtoolset-11 -- make -j $(nproc) linux
