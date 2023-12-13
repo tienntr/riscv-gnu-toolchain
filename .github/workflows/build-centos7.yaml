@@ -34,7 +34,7 @@ jobs:
       - name: Checkout submodules
         run: |
           git config --global --add safe.directory ${GITHUB_WORKSPACE}
-          git submodule init binutils gcc gdb glibc newlib qemu spike
+          git submodule init binutils gcc gdb glibc newlib spike
           git submodule update --recursive --progress --depth=1 -j 0
 
       - name: Configure Newlib toolchain
@@ -44,9 +44,6 @@ jobs:
 
       - name: Build Newlib toolchain
         run: scl enable devtoolset-11 -- make -j $(nproc)
-
-      - name: Build QEMU
-        run: scl enable devtoolset-11 -- make -j $(nproc) build-sim SIM=qemu
 
       - name: Build Spike
         run: scl enable devtoolset-11 -- make -j $(nproc) build-sim SIM=spike
