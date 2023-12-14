@@ -26,8 +26,12 @@ jobs:
             bison flex texinfo patchutils zlib-devel expat-devel \
             python-devel \
             ninja-build dtc glib2-devel \
-            cmake3 devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-make \
+            devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-make \
             git236-core
+          curl -Lo cmake.sh https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh && \
+            chmod +x cmake.sh && \
+            ./cmake.sh --skip-license --prefix=/usr && \
+            rm -f cmake.sh
 
       - uses: actions/checkout@v3
 
