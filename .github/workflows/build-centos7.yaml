@@ -36,7 +36,7 @@ jobs:
             python-devel \
             ninja-build dtc glib2-devel \
             devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-make \
-            git236-core
+            git236-core rh-python38
           curl -Lo cmake.sh https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh && \
             chmod +x cmake.sh && \
             ./cmake.sh --skip-license --prefix=/usr && \
@@ -47,7 +47,7 @@ jobs:
       - name: Checkout submodules
         run: |
           git config --global --add safe.directory ${GITHUB_WORKSPACE}
-          git submodule init binutils gcc gdb glibc newlib spike
+          git submodule init binutils gcc gdb glibc newlib qemu spike
           git submodule update --recursive --progress --depth=1 -j 0
 
       - name: Configure Newlib toolchain
@@ -57,6 +57,9 @@ jobs:
 
       - name: Build Newlib toolchain
         run: scl enable devtoolset-11 -- make -j $(nproc)
+      
+      - name: Build QEMU
+        run: scl enable devtoolset-11 rh-python38 -- make -j $(nproc) build-sim SIM=qemu
 
       - name: Build Spike
         run: scl enable devtoolset-11 -- make -j $(nproc) build-sim SIM=spike
