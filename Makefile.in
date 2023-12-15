@@ -69,6 +69,8 @@ endif
 GLIBC_MULTILIB_NAMES := @glibc_multilib_names@
 GCC_CHECKING_FLAGS := @gcc_checking@
 
+EXTRA_MULTILIB_TEST := @extra_multilib_test@
+
 XLEN := $(shell echo $(WITH_ARCH) | tr A-Z a-z | sed 's/.*rv\([0-9]*\).*/\1/')
 ifneq ($(XLEN),32)
 	XLEN := 64
@@ -91,12 +93,12 @@ GDB_NATIVE_FLAGS := $(GDB_NATIVE_FLAGS_EXTRA)
 GLIBC_TARGET_FLAGS := $(GLIBC_TARGET_FLAGS_EXTRA)
 GLIBC_CC_FOR_TARGET ?= $(LINUX_TUPLE)-gcc
 GLIBC_CXX_FOR_TARGET ?= $(LINUX_TUPLE)-g++
-GLIBC_TARGET_BOARDS ?= $(shell echo "$(GLIBC_MULTILIB_NAMES)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim/-march=\1/-mabi=\2/@cmodel@!g')
+GLIBC_TARGET_BOARDS ?= $(shell echo "$(GLIBC_MULTILIB_NAMES) $(EXTRA_MULTILIB_TEST)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim/-march=\1/-mabi=\2/@cmodel@!g')
 
 NEWLIB_CC_FOR_TARGET ?= $(NEWLIB_TUPLE)-gcc
 NEWLIB_CXX_FOR_TARGET ?= $(NEWLIB_TUPLE)-g++
-NEWLIB_TARGET_BOARDS ?= $(shell echo "$(NEWLIB_MULTILIB_NAMES)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim/-march=\1/-mabi=\2/@cmodel@!g')
-NEWLIB_NANO_TARGET_BOARDS ?= $(shell echo "$(NEWLIB_MULTILIB_NAMES)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim-nano/-march=\1/-mabi=\2/@cmodel@!g')
+NEWLIB_TARGET_BOARDS ?= $(shell echo "$(NEWLIB_MULTILIB_NAMES) $(EXTRA_MULTILIB_TEST)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim/-march=\1/-mabi=\2/@cmodel@!g')
+NEWLIB_NANO_TARGET_BOARDS ?= $(shell echo "$(NEWLIB_MULTILIB_NAMES) $(EXTRA_MULTILIB_TEST)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim-nano/-march=\1/-mabi=\2/@cmodel@!g')
 NEWLIB_CC_FOR_MULTILIB_INFO := $(NEWLIB_CC_FOR_TARGET)
 
 MUSL_TARGET_FLAGS := $(MUSL_TARGET_FLAGS_EXTRA)
@@ -530,7 +532,7 @@ stamps/build-gcc-linux-native: $(GCC_SRCDIR) $(GCC_SRC_GIT) stamps/build-gcc-lin
 		$(WITH_ARCH) \
 		$(WITH_TUNE) \
 		$(WITH_ISA_SPEC) \
-		$(GCC_EXTRA_CONFIGURE_FLAGS) \
+		$(GCC_EXTRA_CONFIGURE_FLAGS)
 	$(MAKE) -C $(notdir $@)
 	$(MAKE) -C $(notdir $@) install
 	cp -a $(INSTALL_DIR)/$(LINUX_TUPLE)/lib* $(SYSROOT)
@@ -871,7 +873,7 @@ stamps/build-pk32: $(PK_SRCDIR) $(PK_SRC_GIT) stamps/build-gcc-newlib-stage2
 	cd $(notdir $@) && $</configure \
 		--prefix=$(INSTALL_DIR) \
 		--host=$(NEWLIB_TUPLE) \
-		--with-arch=rv32imafdc \
+		--with-arch=rv32gc \
 		--with-abi=ilp32f
 	$(MAKE) -C $(notdir $@)
 	cp $(notdir $@)/pk $(INSTALL_DIR)/$(NEWLIB_TUPLE)/bin/pk32
@@ -884,7 +886,8 @@ stamps/build-pk64: $(PK_SRCDIR) $(PK_SRC_GIT) stamps/build-gcc-newlib-stage2
 	cd $(notdir $@) && $</configure \
 		--prefix=$(INSTALL_DIR) \
 		--host=$(NEWLIB_TUPLE) \
-		--with-arch=rv64gc
+		--with-arch=rv64gc \
+		--with-abi=lp64d
 	$(MAKE) -C $(notdir $@)
 	cp $(notdir $@)/pk $(INSTALL_DIR)/$(NEWLIB_TUPLE)/bin/pk64
 	mkdir -p $(dir $@)

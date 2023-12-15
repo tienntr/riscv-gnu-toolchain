@@ -23,12 +23,16 @@ jobs:
           - mode: musl
             compiler: llvm
     steps:
-      - uses: actions/checkout@v2
-
-      - name: initialize submodules
+      - name: Remove unneeded frameworks to recover disk space
         run: |
-          git submodule init
-          git submodule update --recursive --progress --recommend-shallow
+          echo "-- Before --"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          echo "-- After --"
+          df -h
+
+      - uses: actions/checkout@v4
 
       - name: install dependencies
         run: sudo ./.github/setup-apt.sh
@@ -52,6 +56,12 @@ jobs:
         run: |
           sudo make report-${{ matrix.mode }} -j $(nproc)
 
+      - name: recover space
+        run: |
+          sudo du -hs / 2> /dev/null || true
+          sudo rm -rf binutils dejagnu gcc gdb glibc llvm musl newlib pk qemu spike || true
+          sudo du -hs / 2> /dev/null || true
+
       - name: tarball build
         run: tar czvf riscv.tar.gz -C /opt/ riscv/
 
@@ -67,9 +77,9 @@ jobs:
             *)
               MODE="elf";;
           esac
-          echo ::set-output name=TOOLCHAIN_NAME::riscv$BITS-$MODE-${{ matrix.os }}-${{ matrix.compiler }}-nightly
+          echo "TOOLCHAIN_NAME=riscv$BITS-$MODE-${{ matrix.os }}-${{ matrix.compiler }}-nightly" >> $GITHUB_OUTPUT
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.toolchain-name-generator.outputs.TOOLCHAIN_NAME }}
           path: riscv.tar.gz
@@ -86,12 +96,16 @@ jobs:
           - sim: spike
             mode: linux
     steps:
-      - uses: actions/checkout@v2
-
-      - name: initialize submodules
+      - name: Remove unneeded frameworks to recover disk space
         run: |
-          git submodule init
-          git submodule update --recursive --progress --recommend-shallow
+          echo "-- Before --"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          echo "-- After --"
+          df -h
+
+      - uses: actions/checkout@v4
 
       - name: install dependencies
         run: sudo ./.github/setup-apt.sh
@@ -114,12 +128,16 @@ jobs:
         mode:   [newlib, linux]
         target: [rv64gc-lp64d]
     steps:
-      - uses: actions/checkout@v2
-
-      - name: initialize submodules
+      - name: Remove unneeded frameworks to recover disk space
         run: |
-          git submodule init
-          git submodule update --recursive --progress --recommend-shallow
+          echo "-- Before --"
+          df -h
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /usr/local/lib/android
+          echo "-- After --"
+          df -h
+
+      - uses: actions/checkout@v4
 
       - name: install dependencies
         run: sudo ./.github/setup-apt.sh
@@ -149,9 +167,9 @@ jobs:
             *)
               MODE="elf";;
           esac
-          echo ::set-output name=TOOLCHAIN_NAME::riscv$BITS-$MODE-${{ matrix.os }}-multilib-nightly
+          echo "TOOLCHAIN_NAME=riscv$BITS-$MODE-${{ matrix.os }}-multilib-nightly" >> $GITHUB_OUTPUT
 
-      - uses: actions/upload-artifact@v2
+      - uses: actions/upload-artifact@v3
         with:
           name: ${{ steps.toolchain-name-generator.outputs.TOOLCHAIN_NAME }}
           path: riscv.tar.gz
