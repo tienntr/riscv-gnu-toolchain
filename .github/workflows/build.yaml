@@ -50,7 +50,7 @@ jobs:
 
       - name: make report
         if: |
-          matrix.os == 'ubuntu-20.04'
+          matrix.os == 'ubuntu-22.04'
           && (matrix.mode == 'linux' || matrix.mode == 'newlib')
           && matrix.compiler == 'gcc'
         run: |
@@ -88,13 +88,10 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:     [ubuntu-20.04]
-        mode:   [newlib, linux]
+        os:     [ubuntu-22.04]
+        mode:   [newlib]
         target: [rv64gc-lp64d]
         sim:    [spike]
-        exclude:
-          - sim: spike
-            mode: linux
     steps:
       - name: Remove unneeded frameworks to recover disk space
         run: |
@@ -124,7 +121,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os:     [ubuntu-20.04]
+        os:     [ubuntu-22.04]
         mode:   [newlib, linux]
         target: [rv64gc-lp64d]
     steps:

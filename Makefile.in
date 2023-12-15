@@ -63,7 +63,7 @@ ifeq ($(MULTILIB_GEN),)
 NEWLIB_MULTILIB_NAMES := @newlib_multilib_names@
 GCC_MULTILIB_FLAGS := $(MULTILIB_FLAGS)
 else
-NEWLIB_MULTILIB_NAMES := $(shell echo "$(MULTILIB_GEN)" | $(SED) 's/;/\n/g'| $(AWK) '{split($$0,a,"-"); printf "%s-%s ", a[1],a[2]}')
+NEWLIB_MULTILIB_NAMES := $(shell echo "$(MULTILIB_GEN)" | $(SED) 's/;/\n/g' | $(SED) '/^$$/d' | $(AWK) '{split($$0,a,"-"); printf "%s-%s ", a[1],a[2]}')
 GCC_MULTILIB_FLAGS := $(MULTILIB_FLAGS) --with-multilib-generator="$(MULTILIB_GEN)"
 endif
 GLIBC_MULTILIB_NAMES := @glibc_multilib_names@
@@ -93,12 +93,25 @@ GDB_NATIVE_FLAGS := $(GDB_NATIVE_FLAGS_EXTRA)
 GLIBC_TARGET_FLAGS := $(GLIBC_TARGET_FLAGS_EXTRA)
 GLIBC_CC_FOR_TARGET ?= $(LINUX_TUPLE)-gcc
 GLIBC_CXX_FOR_TARGET ?= $(LINUX_TUPLE)-g++
-GLIBC_TARGET_BOARDS ?= $(shell echo "$(GLIBC_MULTILIB_NAMES) $(EXTRA_MULTILIB_TEST)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim/-march=\1/-mabi=\2/@cmodel@!g')
+GLIBC_TARGET_BOARDS ?= $(shell $(srcdir)/scripts/generate_target_board \
+  --sim-name riscv-sim \
+  --cmodel $(shell echo @cmodel@ | cut -d '=' -f2) \
+  --build-arch-abi $(GLIBC_MULTILIB_NAMES) \
+  --extra-test-arch-abi-flags-list "$(EXTRA_MULTILIB_TEST)")
 
 NEWLIB_CC_FOR_TARGET ?= $(NEWLIB_TUPLE)-gcc
 NEWLIB_CXX_FOR_TARGET ?= $(NEWLIB_TUPLE)-g++
-NEWLIB_TARGET_BOARDS ?= $(shell echo "$(NEWLIB_MULTILIB_NAMES) $(EXTRA_MULTILIB_TEST)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim/-march=\1/-mabi=\2/@cmodel@!g')
-NEWLIB_NANO_TARGET_BOARDS ?= $(shell echo "$(NEWLIB_MULTILIB_NAMES) $(EXTRA_MULTILIB_TEST)" | sed 's!\([_a-z0-9]*\)-\([_a-z0-9]*\)!riscv-sim-nano/-march=\1/-mabi=\2/@cmodel@!g')
+NEWLIB_TARGET_BOARDS ?= $(shell $(srcdir)/scripts/generate_target_board \
+  --sim-name riscv-sim \
+  --cmodel $(shell echo @cmodel@ | cut -d '=' -f2) \
+  --build-arch-abi $(NEWLIB_MULTILIB_NAMES) \
+  --extra-test-arch-abi-flags-list "$(EXTRA_MULTILIB_TEST)")
+
+NEWLIB_NANO_TARGET_BOARDS ?= $(shell $(srcdir)/scripts/generate_target_board \
+  --sim-name riscv-sim-nano \
+  --cmodel $(shell echo @cmodel@ | cut -d '=' -f2) \
+  --build-arch-abi $(NEWLIB_MULTILIB_NAMES) \
+  --extra-test-arch-abi-flags-list "$(EXTRA_MULTILIB_TEST)")
 NEWLIB_CC_FOR_MULTILIB_INFO := $(NEWLIB_CC_FOR_TARGET)
 
 MUSL_TARGET_FLAGS := $(MUSL_TARGET_FLAGS_EXTRA)
@@ -191,11 +204,11 @@ report-gdb: report-gdb-@default_target@
 ifeq ($(SIM),qemu)
 SIM_PATH:=$(srcdir)/scripts/wrapper/qemu:$(srcdir)/scripts
 SIM_PREPARE:=PATH="$(SIM_PATH):$(INSTALL_DIR)/bin:$(PATH)" RISC_V_SYSROOT="$(SYSROOT)"
-SIM_STAMP:= stamps/build-qemu stamps/install-python-package
+SIM_STAMP:= stamps/build-qemu
 else
 ifeq ($(SIM),spike)
 # Using spike simulator.
-SIM_PATH:=$(srcdir)/scripts/wrapper/spike
+SIM_PATH:=$(srcdir)/scripts/wrapper/spike:$(srcdir)/scripts
 SIM_PREPARE:=PATH="$(SIM_PATH):$(INSTALL_DIR)/bin:$(PATH)" PK_PATH="$(INSTALL_DIR)/$(NEWLIB_TUPLE)/bin/" ARCH_STR="$(WITH_ARCH)"
 SIM_STAMP:= stamps/build-spike
 ifneq (,$(findstring rv32,$(NEWLIB_MULTILIB_NAMES)))
@@ -893,10 +906,6 @@ stamps/build-pk64: $(PK_SRCDIR) $(PK_SRC_GIT) stamps/build-gcc-newlib-stage2
 	mkdir -p $(dir $@)
 	date > $@
 
-stamps/install-python-package:
-	python3 -m pip install --user pyelftools
-	date > $@
-
 stamps/build-qemu: $(QEMU_SRCDIR) $(QEMU_SRC_GIT)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
@@ -987,7 +996,8 @@ stamps/check-gcc-linux: stamps/build-gcc-linux-stage2 $(SIM_STAMP) stamps/build-
 	mkdir -p $(dir $@)
 	date > $@
 
-stamps/check-glibc-linux-%: $(addprefix stamps/build-glibc-linux-,$(GLIBC_MULTILIB_NAMES))
+stamps/check-glibc-linux-%: stamps/build-gcc-linux-stage2 $(SIM_STAMP) stamps/build-dejagnu \
+		$(addprefix stamps/build-glibc-linux-,$(GLIBC_MULTILIB_NAMES))
 	$(eval $@_BUILD_DIR := $(notdir $@))
 	$(eval $@_BUILD_DIR := $(subst check-,build-,$($@_BUILD_DIR)))
 	$(SIM_PREPARE) $(MAKE) -C $($@_BUILD_DIR) check
