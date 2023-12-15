@@ -10,8 +10,16 @@ jobs:
     runs-on: ubuntu-22.04
     container:
       image: centos:7
+      volumes:
+        - /usr/share/:/host/usr/share/
+        - /usr/local/lib/:/host/usr/local/lib/
 
     steps:
+      - name: Remove unneeded frameworks to recover disk space
+        run: |
+          rm -rf /host/usr/share/dotnet
+          rm -rf /host/usr/local/lib/android
+
       - name: Update and install build tools
         # Add python-devel to support python in gdb.
         # actions/checkout@v3 requires git >= 2.18
