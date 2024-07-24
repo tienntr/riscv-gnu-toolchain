@@ -23,13 +23,20 @@ jobs:
 
       - name: Update and install build tools
         # Add python-devel to support python in gdb.
-        # actions/checkout@v3 requires git >= 2.18
+        # actions/checkout@v3 requires git >= 2.18.
+        # mirror.centos.org doens't exist anymore after CentOS 7 EOL.
         run: |
+          sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
+          sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
+          sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
           yum -y update
           yum -y install \
             centos-release-scl \
             https://repo.ius.io/ius-release-el7.rpm \
             https://dl.fedoraproject.org/pub/epel/epel-release-latest-7.noarch.rpm
+          sed -i s/mirror.centos.org/vault.centos.org/g /etc/yum.repos.d/*.repo
+          sed -i s/^#.*baseurl=http/baseurl=http/g /etc/yum.repos.d/*.repo
+          sed -i s/^mirrorlist=http/#mirrorlist=http/g /etc/yum.repos.d/*.repo
           yum -y install \
             autoconf automake python3 libmpc-devel mpfr-devel gmp-devel gawk \
             bison flex texinfo patchutils zlib-devel expat-devel \
