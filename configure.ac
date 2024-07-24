@@ -67,6 +67,18 @@ AS_IF([test "x$enable_debug_info" != xyes],
 	[AC_SUBST(debug_info, "")],
 	[AC_SUBST(debug_info, "-g")])
 
+AC_ARG_ENABLE(default-pie,
+        [AS_HELP_STRING([--enable-default-pie],
+		[build linux toolchain with default PIE @<:@--enable-default-pie@:>@])],
+        [],
+        [enable_default_pie=no]
+        )
+
+AS_IF([test "x$enable_default_pie" != xyes],
+	[AC_SUBST(enable_default_pie, "--disable-default-pie")],
+	[AC_SUBST(enable_default_pie, "--enable-default-pie")])
+
+
 AC_ARG_WITH(arch,
 	[AS_HELP_STRING([--with-arch=rv64imafdc],
 		[Sets the base RISC-V ISA, defaults to rv64imafdc])],
@@ -258,6 +270,16 @@ AC_ARG_ENABLE(llvm,
 AS_IF([test "x$enable_llvm" != xyes],
 	[AC_SUBST(enable_llvm, --disable-llvm)],
 	[AC_SUBST(enable_llvm, --enable-llvm)])
+
+AC_ARG_ENABLE(host-gcc,
+	[AS_HELP_STRING([--enable-host-gcc],
+		[Build host GCC to build cross toolchain])],
+	[enable_host_gcc=yes],
+	[])
+
+AS_IF([test "x$enable_host_gcc" != xyes],
+	[AC_SUBST(enable_host_gcc, --disable-host-gcc)],
+	[AC_SUBST(enable_host_gcc, --enable-host-gcc)])
 
 AC_DEFUN([AX_ARG_WITH_SRC],
 	[{m4_pushdef([opt_name], with_$1_src)

@@ -15,6 +15,7 @@ PK_SRCDIR := @with_pk_src@
 LLVM_SRCDIR := @with_llvm_src@
 DEJAGNU_SRCDIR := @with_dejagnu_src@
 DEBUG_INFO := @debug_info@
+ENABLE_DEFAULT_PIE := @enable_default_pie@
 DEJAGNU_SRCDIR := @with_dejagnu_src@
 
 SIM ?= @WITH_SIM@
@@ -96,21 +97,22 @@ GLIBC_CXX_FOR_TARGET ?= $(LINUX_TUPLE)-g++
 GLIBC_TARGET_BOARDS ?= $(shell $(srcdir)/scripts/generate_target_board \
   --sim-name riscv-sim \
   --cmodel $(shell echo @cmodel@ | cut -d '=' -f2) \
-  --build-arch-abi $(GLIBC_MULTILIB_NAMES) \
+  --build-arch-abi "$(GLIBC_MULTILIB_NAMES)" \
   --extra-test-arch-abi-flags-list "$(EXTRA_MULTILIB_TEST)")
 
+NEWLIB_TARGET_FLAGS := $(NEWLIB_TARGET_FLAGS_EXTRA)
 NEWLIB_CC_FOR_TARGET ?= $(NEWLIB_TUPLE)-gcc
 NEWLIB_CXX_FOR_TARGET ?= $(NEWLIB_TUPLE)-g++
 NEWLIB_TARGET_BOARDS ?= $(shell $(srcdir)/scripts/generate_target_board \
   --sim-name riscv-sim \
   --cmodel $(shell echo @cmodel@ | cut -d '=' -f2) \
-  --build-arch-abi $(NEWLIB_MULTILIB_NAMES) \
+  --build-arch-abi "$(NEWLIB_MULTILIB_NAMES)" \
   --extra-test-arch-abi-flags-list "$(EXTRA_MULTILIB_TEST)")
 
 NEWLIB_NANO_TARGET_BOARDS ?= $(shell $(srcdir)/scripts/generate_target_board \
   --sim-name riscv-sim-nano \
   --cmodel $(shell echo @cmodel@ | cut -d '=' -f2) \
-  --build-arch-abi $(NEWLIB_MULTILIB_NAMES) \
+  --build-arch-abi "$(NEWLIB_MULTILIB_NAMES)" \
   --extra-test-arch-abi-flags-list "$(EXTRA_MULTILIB_TEST)")
 NEWLIB_CC_FOR_MULTILIB_INFO := $(NEWLIB_CC_FOR_TARGET)
 
@@ -119,8 +121,14 @@ MUSL_CC_FOR_TARGET ?= $(MUSL_TUPLE)-gcc
 MUSL_CXX_FOR_TARGET ?= $(MUSL_TUPLE)-g++
 
 CONFIGURE_HOST   = @configure_host@
+PREPARATION_STAMP:=stamps/check-write-permission
 
 all: @default_target@
+ifeq (@enable_host_gcc@,--enable-host-gcc)
+PREPARATION_STAMP+= stamps/install-host-gcc
+PATH := $(builddir)/install-host-gcc/bin:$(PATH)
+GCC_CHECKING_FLAGS := $(GCC_CHECKING_FLAGS) --enable-werror-always
+endif
 newlib: stamps/build-gcc-newlib-stage2
 linux: stamps/build-gcc-linux-stage2
 ifneq (,$(findstring riscv32,$(MUSL_TUPLE)))
@@ -324,11 +332,25 @@ $(srcdir)/%/.git:
 	flock `git rev-parse --git-dir`/config git submodule init $(dir $@) && \
 	flock `git rev-parse --git-dir`/config git submodule update $(dir $@)
 
+stamps/install-host-gcc: $(GCC_SRCDIR) $(GCC_SRC_GIT)
+	if test -f $</contrib/download_prerequisites && test "@NEED_GCC_EXTERNAL_LIBRARIES@" = "true"; then cd $< && ./contrib/download_prerequisites; fi
+	rm -rf $@ $(notdir $@)
+	mkdir $(notdir $@)
+	cd $(notdir $@) && $</configure \
+		--prefix=$(builddir)/install-host-gcc \
+		@with_system_zlib@ \
+		--enable-languages=c,c++ \
+		--disable-bootstrap \
+		--disable-multilib
+	$(MAKE) -C $(notdir $@)
+	$(MAKE) -C $(notdir $@) install
+	mkdir -p $(dir $@) && touch $@
+
 #
 # GLIBC
 #
 
-stamps/build-binutils-linux: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/check-write-permission
+stamps/build-binutils-linux: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 # CC_FOR_TARGET is required for the ld testsuite.
@@ -337,6 +359,7 @@ stamps/build-binutils-linux: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/check
 		$(CONFIGURE_HOST) \
 		--prefix=$(INSTALL_DIR) \
 		--with-sysroot=$(SYSROOT) \
+		--enable-plugins \
 		$(MULTILIB_FLAGS) \
 		@with_guile@ \
 		--disable-werror \
@@ -351,7 +374,7 @@ stamps/build-binutils-linux: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/check
 	$(MAKE) -C $(notdir $@) install
 	mkdir -p $(dir $@) && touch $@
 
-stamps/build-gdb-linux: $(GDB_SRCDIR) $(GDB_SRC_GIT)
+stamps/build-gdb-linux: $(GDB_SRCDIR) $(GDB_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 # CC_FOR_TARGET is required for the ld testsuite.
@@ -448,6 +471,7 @@ stamps/build-gcc-linux-stage1: $(GCC_SRCDIR) $(GCC_SRC_GIT) stamps/build-binutil
 		--disable-nls \
 		--disable-bootstrap \
 		--src=$(gccsrcdir) \
+		$(ENABLE_DEFAULT_PIE) \
 		$(GCC_CHECKING_FLAGS) \
 		$(MULTILIB_FLAGS) \
 		$(WITH_ABI) \
@@ -484,6 +508,7 @@ stamps/build-gcc-linux-stage2: $(GCC_SRCDIR) $(GCC_SRC_GIT) $(addprefix stamps/b
 		--disable-nls \
 		--disable-bootstrap \
 		--src=$(gccsrcdir) \
+		$(ENABLE_DEFAULT_PIE) \
 		$(GCC_CHECKING_FLAGS) \
 		$(MULTILIB_FLAGS) \
 		$(WITH_ABI) \
@@ -498,7 +523,7 @@ stamps/build-gcc-linux-stage2: $(GCC_SRCDIR) $(GCC_SRC_GIT) $(addprefix stamps/b
 	cp -a $(INSTALL_DIR)/$(LINUX_TUPLE)/lib* $(SYSROOT)
 	mkdir -p $(dir $@) && touch $@
 
-stamps/build-binutils-linux-native: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/build-gcc-linux-stage2 stamps/check-write-permission
+stamps/build-binutils-linux-native: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/build-gcc-linux-stage2 $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 	cd $(notdir $@) && $</configure \
@@ -506,6 +531,7 @@ stamps/build-binutils-linux-native: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamp
 		--target=$(LINUX_TUPLE) \
 		$(CONFIGURE_HOST) \
 		--prefix=$(INSTALL_DIR)/native \
+		--enable-plugins \
 		$(MULTILIB_FLAGS) \
 		@with_guile@ \
 		--disable-werror \
@@ -555,7 +581,7 @@ stamps/build-gcc-linux-native: $(GCC_SRCDIR) $(GCC_SRC_GIT) stamps/build-gcc-lin
 # NEWLIB
 #
 
-stamps/build-binutils-newlib: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/check-write-permission
+stamps/build-binutils-newlib: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 # CC_FOR_TARGET is required for the ld testsuite.
@@ -563,6 +589,7 @@ stamps/build-binutils-newlib: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/chec
 		--target=$(NEWLIB_TUPLE) \
 		$(CONFIGURE_HOST) \
 		--prefix=$(INSTALL_DIR) \
+		--enable-plugins \
 		@with_guile@ \
 		--disable-werror \
 		$(BINUTILS_TARGET_FLAGS) \
@@ -575,7 +602,7 @@ stamps/build-binutils-newlib: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/chec
 	$(MAKE) -C $(notdir $@) install
 	mkdir -p $(dir $@) && touch $@
 
-stamps/build-gdb-newlib: $(GDB_SRCDIR) $(GDB_SRC_GIT)
+stamps/build-gdb-newlib: $(GDB_SRCDIR) $(GDB_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 # CC_FOR_TARGET is required for the ld testsuite.
@@ -643,7 +670,8 @@ stamps/build-newlib: $(NEWLIB_SRCDIR) $(NEWLIB_SRC_GIT) stamps/build-gcc-newlib-
 		--enable-newlib-io-c99-formats \
 		--enable-newlib-register-fini \
 		CFLAGS_FOR_TARGET="-O2 -D_POSIX_MODE -ffunction-sections -fdata-sections $(CFLAGS_FOR_TARGET)" \
-		CXXFLAGS_FOR_TARGET="-O2 -D_POSIX_MODE -ffunction-sections -fdata-sections $(CXXFLAGS_FOR_TARGET)"
+		CXXFLAGS_FOR_TARGET="-O2 -D_POSIX_MODE -ffunction-sections -fdata-sections $(CXXFLAGS_FOR_TARGET)" \
+		$(NEWLIB_TARGET_FLAGS)
 	$(MAKE) -C $(notdir $@)
 	$(MAKE) -C $(notdir $@) install
 	mkdir -p $(dir $@) && touch $@
@@ -667,7 +695,8 @@ stamps/build-newlib-nano: $(NEWLIB_SRCDIR) $(NEWLIB_SRC_GIT) stamps/build-gcc-ne
 		--disable-newlib-supplied-syscalls \
 		--disable-nls \
 		CFLAGS_FOR_TARGET="-Os -ffunction-sections -fdata-sections $(CFLAGS_FOR_TARGET)" \
-		CXXFLAGS_FOR_TARGET="-Os -ffunction-sections -fdata-sections $(CXXFLAGS_FOR_TARGET)"
+		CXXFLAGS_FOR_TARGET="-Os -ffunction-sections -fdata-sections $(CXXFLAGS_FOR_TARGET)" \
+		$(NEWLIB_TARGET_FLAGS)
 	$(MAKE) -C $(notdir $@)
 	$(MAKE) -C $(notdir $@) install
 	mkdir -p $(dir $@) && touch $@
@@ -741,7 +770,7 @@ stamps/build-gcc-newlib-stage2: $(GCC_SRCDIR) $(GCC_SRC_GIT) stamps/build-newlib
 # MUSL
 #
 
-stamps/build-binutils-musl: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/check-write-permission
+stamps/build-binutils-musl: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 # CC_FOR_TARGET is required for the ld testsuite.
@@ -750,6 +779,7 @@ stamps/build-binutils-musl: $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) stamps/check-
 		$(CONFIGURE_HOST) \
 		--prefix=$(INSTALL_DIR) \
 		--with-sysroot=$(SYSROOT) \
+		--enable-plugins \
 		$(MULTILIB_FLAGS) \
 		@with_guile@ \
 		--disable-werror \
@@ -787,6 +817,7 @@ stamps/build-gcc-musl-stage1: $(GCC_SRCDIR) $(GCC_SRC_GIT) stamps/build-binutils
 		--disable-nls \
 		--disable-bootstrap \
 		--src=$(gccsrcdir) \
+		$(ENABLE_DEFAULT_PIE) \
 		$(GCC_CHECKING_FLAGS) \
 		--disable-multilib \
 		$(WITH_ABI) \
@@ -856,6 +887,7 @@ stamps/build-gcc-musl-stage2: $(GCC_SRCDIR) $(GCC_SRC_GIT) stamps/build-musl-lin
 		--disable-nls \
 		--disable-bootstrap \
 		--src=$(gccsrcdir) \
+		$(ENABLE_DEFAULT_PIE) \
 		$(GCC_CHECKING_FLAGS) \
 		--disable-multilib \
 		$(WITH_ABI) \
@@ -870,7 +902,7 @@ stamps/build-gcc-musl-stage2: $(GCC_SRCDIR) $(GCC_SRC_GIT) stamps/build-musl-lin
 	cp -a $(INSTALL_DIR)/$(MUSL_TUPLE)/lib* $(SYSROOT)
 	mkdir -p $(dir $@) && touch $@
 
-stamps/build-spike: $(SPIKE_SRCDIR) $(SPIKE_SRC_GIT)
+stamps/build-spike: $(SPIKE_SRCDIR) $(SPIKE_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 	cd $(notdir $@) && $</configure \
@@ -906,7 +938,7 @@ stamps/build-pk64: $(PK_SRCDIR) $(PK_SRC_GIT) stamps/build-gcc-newlib-stage2
 	mkdir -p $(dir $@)
 	date > $@
 
-stamps/build-qemu: $(QEMU_SRCDIR) $(QEMU_SRC_GIT)
+stamps/build-qemu: $(QEMU_SRCDIR) $(QEMU_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 	cd $(notdir $@) && $</configure \
@@ -919,7 +951,7 @@ stamps/build-qemu: $(QEMU_SRCDIR) $(QEMU_SRC_GIT)
 	mkdir -p $(dir $@)
 	date > $@
 
-stamps/build-llvm-linux: $(LLVM_SRCDIR) $(LLVM_SRC_GIT) \
+stamps/build-llvm-linux: $(LLVM_SRCDIR) $(LLVM_SRC_GIT) $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) \
                          stamps/build-gcc-linux-stage2
 	# We have the following situation:
 	# - sysroot directory: $(INSTALL_DIR)/sysroot
@@ -946,14 +978,58 @@ stamps/build-llvm-linux: $(LLVM_SRCDIR) $(LLVM_SRC_GIT) \
 	    -DDEFAULT_SYSROOT="../sysroot" \
 	    -DLLVM_RUNTIME_TARGETS=$(call make_tuple,$(XLEN),linux-gnu) \
 	    -DLLVM_INSTALL_TOOLCHAIN_ONLY=On \
+	    -DLLVM_BINUTILS_INCDIR=$(BINUTILS_SRCDIR)/include \
 	    -DLLVM_PARALLEL_LINK_JOBS=4
 	$(MAKE) -C $(notdir $@)
 	$(MAKE) -C $(notdir $@) install
+	# Build shared/static OpenMP libraries on RV64.
+	if test $(XLEN) -eq 64; then \
+	    mkdir $(notdir $@)/openmp-shared; \
+	    cmake -S$(LLVM_SRCDIR)/openmp \
+	        -B$(notdir $@)/openmp-shared \
+	        -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) \
+	        -DCMAKE_C_COMPILER=$(INSTALL_DIR)/bin/clang \
+	        -DCMAKE_CXX_COMPILER=$(INSTALL_DIR)/bin/clang++ \
+	        -DOPENMP_ENABLE_LIBOMPTARGET=Off \
+	        -DCMAKE_BUILD_TYPE=Release \
+	        -DLIBOMP_ARCH=riscv64 \
+	        -DLIBOMP_HAVE_WARN_SHARED_TEXTREL_FLAG=On \
+	        -DLIBOMP_HAVE_AS_NEEDED_FLAG=On \
+	        -DLIBOMP_HAVE_VERSION_SCRIPT_FLAG=On \
+	        -DLIBOMP_HAVE_STATIC_LIBGCC_FLAG=On \
+	        -DLIBOMP_HAVE_Z_NOEXECSTACK_FLAG=On \
+	        -DDISABLE_OMPD_GDB_PLUGIN=On \
+	        -DLIBOMP_OMPD_GDB_SUPPORT=Off \
+	        -DLIBOMP_ENABLE_SHARED=On; \
+	    $(MAKE) -C $(notdir $@)/openmp-shared; \
+	    $(MAKE) -C $(notdir $@)/openmp-shared install; \
+	    mkdir $(notdir $@)/openmp-static; \
+	    cmake -S$(LLVM_SRCDIR)/openmp \
+	        -B$(notdir $@)/openmp-static \
+	        -DCMAKE_INSTALL_PREFIX=$(INSTALL_DIR) \
+	        -DCMAKE_C_COMPILER=$(INSTALL_DIR)/bin/clang \
+	        -DCMAKE_CXX_COMPILER=$(INSTALL_DIR)/bin/clang++ \
+	        -DOPENMP_ENABLE_LIBOMPTARGET=Off \
+	        -DCMAKE_BUILD_TYPE=Release \
+	        -DLIBOMP_ARCH=riscv64 \
+	        -DLIBOMP_HAVE_WARN_SHARED_TEXTREL_FLAG=On \
+	        -DLIBOMP_HAVE_AS_NEEDED_FLAG=On \
+	        -DLIBOMP_HAVE_VERSION_SCRIPT_FLAG=On \
+	        -DLIBOMP_HAVE_STATIC_LIBGCC_FLAG=On \
+	        -DLIBOMP_HAVE_Z_NOEXECSTACK_FLAG=On \
+	        -DDISABLE_OMPD_GDB_PLUGIN=On \
+	        -DLIBOMP_OMPD_GDB_SUPPORT=Off \
+	        -DLIBOMP_ENABLE_SHARED=Off; \
+	    $(MAKE) -C $(notdir $@)/openmp-static; \
+	    $(MAKE) -C $(notdir $@)/openmp-static install; \
+	fi
 	cp $(notdir $@)/lib/riscv$(XLEN)-unknown-linux-gnu/libc++* $(SYSROOT)/lib
+	cp $(notdir $@)/lib/LLVMgold.so  $(INSTALL_DIR)/lib
 	cd $(INSTALL_DIR)/bin && ln -s -f clang $(LINUX_TUPLE)-clang && ln -s -f clang++ $(LINUX_TUPLE)-clang++
 	mkdir -p $(dir $@) && touch $@
 
-stamps/build-llvm-newlib: $(LLVM_SRCDIR) $(LLVM_SRC_GIT) stamps/build-gcc-newlib-stage2
+stamps/build-llvm-newlib: $(LLVM_SRCDIR) $(LLVM_SRC_GIT) $(BINUTILS_SRCDIR) $(BINUTILS_SRC_GIT) \
+                          stamps/build-gcc-newlib-stage2
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 	cd $(notdir $@) && \
@@ -964,14 +1040,16 @@ stamps/build-llvm-newlib: $(LLVM_SRCDIR) $(LLVM_SRC_GIT) stamps/build-gcc-newlib
 	    -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld" \
 	    -DLLVM_DEFAULT_TARGET_TRIPLE="$(NEWLIB_TUPLE)" \
 	    -DLLVM_INSTALL_TOOLCHAIN_ONLY=On \
+	    -DLLVM_BINUTILS_INCDIR=$(BINUTILS_SRCDIR)/include \
 	    -DLLVM_PARALLEL_LINK_JOBS=4
 	$(MAKE) -C $(notdir $@)
 	$(MAKE) -C $(notdir $@) install
+	cp $(notdir $@)/lib/LLVMgold.so  $(INSTALL_DIR)/lib
 	cd $(INSTALL_DIR)/bin && ln -s -f clang $(NEWLIB_TUPLE)-clang && \
 	    ln -s -f clang++ $(NEWLIB_TUPLE)-clang++
 	mkdir -p $(dir $@) && touch $@
 
-stamps/build-dejagnu: $(DEJAGNU_SRCDIR) $(DEJAGNU_SRC_GIT)
+stamps/build-dejagnu: $(DEJAGNU_SRCDIR) $(DEJAGNU_SRC_GIT) $(PREPARATION_STAMP)
 	rm -rf $@ $(notdir $@)
 	mkdir $(notdir $@)
 	cd $(notdir $@) && $</configure \
@@ -1101,7 +1179,7 @@ report-binutils-linux: stamps/check-binutils-linux
 	    `find build-binutils-linux/ -name *.sum |paste -sd "," -`
 
 clean:
-	rm -rf build-* stamps install-newlib-nano
+	rm -rf build-* install-* stamps install-newlib-nano
 
 .PHONY: report-gdb-newlib report-gdb-newlib-nano
 report-gdb-newlib: stamps/check-gdb-newlib
