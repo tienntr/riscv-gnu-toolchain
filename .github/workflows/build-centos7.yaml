@@ -44,7 +44,7 @@ jobs:
             ninja-build dtc glib2-devel \
             devtoolset-11-gcc devtoolset-11-gcc-c++ devtoolset-11-make \
             git236-core rh-python38
-          curl -Lo cmake.sh https://github.com/Kitware/CMake/releases/download/v3.28.0/cmake-3.28.0-linux-x86_64.sh && \
+          curl -Lo cmake.sh https://github.com/Kitware/CMake/releases/download/v3.29.6/cmake-3.29.6-linux-x86_64.sh && \
             chmod +x cmake.sh && \
             ./cmake.sh --skip-license --prefix=/usr && \
             rm -f cmake.sh
